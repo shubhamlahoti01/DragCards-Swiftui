@@ -106,12 +106,15 @@ struct AddEditCategoryView: View {
   @State private var cardTitles: [String] = []
 
   @Environment(\.dismiss) private var dismiss
+  
+  // Alert state
+  @State private var showAlert = false
+  @State private var alertMessage = ""
 
   init(category: Category?, context: NSManagedObjectContext, onComplete: @escaping ()->Void) {
     self.category = category
     self.context = context
     self.onComplete = onComplete
-    // _title and _cardTitles will be set in .onAppear
   }
 
   var body: some View {
@@ -120,10 +123,10 @@ struct AddEditCategoryView: View {
         Section("Category") {
           TextField("Title", text: $title)
         }
-        Section("Cards") {
+        Section("Action Cards") {
           ForEach(cardTitles.indices, id: \.self) { idx in
             HStack {
-              TextField("Card \(idx+1)", text: $cardTitles[idx])
+              TextField("Go for a walk", text: $cardTitles[idx])
               Button(role: .destructive) {
                 cardTitles.remove(at: idx)
               } label: {
@@ -142,51 +145,98 @@ struct AddEditCategoryView: View {
       .toolbar {
         ToolbarItem(placement: .confirmationAction) {
           Button("Save") { saveAndDismiss() }
-            .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+            .disabled(!canSave)
         }
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { dismiss() }
         }
       }
+      .alert(alertMessage, isPresented: $showAlert) {
+        Button("OK", role: .cancel) {}
+      }
       .onAppear {
         if let cat = category {
           title = cat.title ?? ""
-          // load existing cards in order
           let existing = (cat.cards as? Set<FlashCard>)?
-            .sorted { ($0.order) < ($1.order) } ?? []
+            .sorted { $0.order < $1.order } ?? []
           cardTitles = existing.map { $0.title ?? "" }
         }
       }
     }
   }
-
-    private func saveAndDismiss() {
-        let cat = category ?? Category(context: context)
-        cat.title = title
-        if category == nil { cat.dateCreated = Date() }
-
-        // Create a map from old card titles to their isDone state
-        var isDoneMap: [String: Bool] = [:]
-        if let existing = cat.cards as? Set<FlashCard> {
-            for card in existing {
-                if let title = card.title {
-                    isDoneMap[title] = card.isDone
-                }
-                context.delete(card)  // Delete old card
-            }
+  
+  private var canSave: Bool {
+    !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+  
+  private func saveAndDismiss() {
+    let trimmedCategoryTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    
+    // Validate category title uniqueness
+    let fetchRequest = NSFetchRequest<Category>(entityName: "Category")
+    fetchRequest.predicate = NSPredicate(format: "title == %@", trimmedCategoryTitle)
+    do {
+      let existingCategories = try context.fetch(fetchRequest)
+      // If new category, any existing with same title is error
+      // If editing, exclude self from duplicates
+      if category == nil {
+        if !existingCategories.isEmpty {
+          alertMessage = "Category title must be unique."
+          showAlert = true
+          return
         }
-
-        // Recreate cards with new titles, order, and preserve isDone if possible
-        for (i, t) in cardTitles.enumerated() where !t.isEmpty {
-            let card = FlashCard(context: context)
-            card.title = t
-            card.order = Int32(i)
-            card.category = cat
-            card.isDone = isDoneMap[t] ?? false  // Preserve existing isDone or default false
+      } else {
+        if existingCategories.contains(where: { $0 != category }) {
+          alertMessage = "Category title must be unique."
+          showAlert = true
+          return
         }
-
-        try? context.save()
-        onComplete()
+      }
+    } catch {
+      // Handle fetch error if needed
     }
-
+    
+    // Validate unique card titles (trimmed, non-empty)
+    let trimmedCards = cardTitles.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+    let uniqueCards = Set(trimmedCards)
+    if uniqueCards.count != trimmedCards.count {
+      alertMessage = "Card titles must be unique."
+      showAlert = true
+      return
+    }
+    
+    // All validation passed, proceed to save
+    
+    let cat = category ?? Category(context: context)
+    cat.title = trimmedCategoryTitle
+    if category == nil { cat.dateCreated = Date() }
+    
+    // Map old cards' isDone state
+    var isDoneMap: [String: Bool] = [:]
+    if let existing = cat.cards as? Set<FlashCard> {
+      for card in existing {
+        if let title = card.title {
+          isDoneMap[title] = card.isDone
+        }
+        context.delete(card)
+      }
+    }
+    
+    // Recreate cards preserving isDone state where possible
+    for (i, t) in cardTitles.enumerated() where !t.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      let card = FlashCard(context: context)
+      card.title = t.trimmingCharacters(in: .whitespacesAndNewlines)
+      card.order = Int32(i)
+      card.category = cat
+      card.isDone = isDoneMap[t] ?? false
+    }
+    
+    do {
+      try context.save()
+      onComplete()
+    } catch {
+      alertMessage = "Failed to save: \(error.localizedDescription)"
+      showAlert = true
+    }
+  }
 }

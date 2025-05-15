@@ -36,6 +36,7 @@ struct FlashCardView: View {
                 
                 Text(card.title ?? "")
                     .padding(.horizontal, 15)
+                    .strikethrough(card.isDone ? true : false)
                     .frame(width: rect.width, height: rect.height, alignment: .leading)
                     .background(Color("Background"), in: .rect(cornerRadius: 10))
                     .gesture(customGesture(rect: rect))

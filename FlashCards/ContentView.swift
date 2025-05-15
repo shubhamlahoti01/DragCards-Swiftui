@@ -13,7 +13,7 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             HomeView()
-                .navigationTitle("Flash Cards")
+                .navigationTitle("TODO")
                 .navigationBarTitleDisplayMode(.inline)
         }
         /// Always the dark mode
