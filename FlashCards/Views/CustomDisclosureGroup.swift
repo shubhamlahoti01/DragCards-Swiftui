@@ -85,7 +85,7 @@ struct CustomDisclosureGroup: View {
     @ViewBuilder
     private func cardsView() -> some View {
         if cards.isEmpty {
-            Text("Ready when you are — add some tasks to this category!")
+            Text("Ready when you are, add some tasks to this category!")
                 .font(.callout)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.gray)
