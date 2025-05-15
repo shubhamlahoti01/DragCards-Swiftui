@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct FlashCardView: View {
-    var card: FlashCard
+    @ObservedObject var card: FlashCard
     var category: Category
     @EnvironmentObject private var properties: DragProperties
     @Environment(\.managedObjectContext) private var context
@@ -16,22 +16,35 @@ struct FlashCardView: View {
     @GestureState private var isActive: Bool = false
     /// Let's give some little haptics feedback when the gesture becomes active
     @State private var haptics: Bool = false
-
     var body: some View {
         GeometryReader {
             let rect = $0.frame(in: .global)
             let isSwappingInSameGroup = rect.contains(properties.location) && properties.sourceCard != card && properties.destinationCategory == nil
-            
-            Text(card.title ?? "")
-                .padding(.horizontal, 15)
-                .frame(width: rect.width, height: rect.height, alignment: .leading)
-                .background(Color("Background"), in: .rect(cornerRadius: 10))
-                .gesture(customGesture(rect: rect))
-                .onChange(of: isSwappingInSameGroup) { oldValue, newValue in
-                    if newValue {
-                        properties.swapCardsInSameGroup(card)
+            HStack {
+                Button(action: {
+                    card.isDone.toggle()
+                    do {
+                        try context.save()
+                    } catch {
+                        print("Failed to save context: \(error)")
                     }
+                }){
+                    Image(systemName: card.isDone ? "checkmark.circle.fill" : "circle")
+                        .foregroundColor(card.isDone ? .green : .gray)
                 }
+                .buttonStyle(.plain)
+                
+                Text(card.title ?? "")
+                    .padding(.horizontal, 15)
+                    .frame(width: rect.width, height: rect.height, alignment: .leading)
+                    .background(Color("Background"), in: .rect(cornerRadius: 10))
+                    .gesture(customGesture(rect: rect))
+                    .onChange(of: isSwappingInSameGroup) { oldValue, newValue in
+                        if newValue {
+                            properties.swapCardsInSameGroup(card)
+                        }
+                    }
+            }
         }
         .frame(height: 60)
         /// Hiding the active dragging view
