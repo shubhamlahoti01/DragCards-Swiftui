@@ -34,7 +34,6 @@ struct CustomDisclosureGroup: View {
                 Menu {
                     Button {
                         selectedCategory = category
-                        showingCategorySheet = true
                     } label: {
                         Label("Edit", systemImage: "pencil")
                     }

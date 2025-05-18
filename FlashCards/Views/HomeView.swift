@@ -34,6 +34,15 @@ struct HomeView: View {
             }
             .padding(15)
         }
+        .sheet(item: $selectedCategory) { item in
+            AddEditCategoryView(
+                category: item,
+                context: context
+            ) {
+                // completion
+                selectedCategory = nil
+            }
+        }
         .sheet(isPresented: $showingCategorySheet) {
             AddEditCategoryView(
                 category: selectedCategory,
@@ -41,6 +50,7 @@ struct HomeView: View {
             ) {
                 // completion
                 showingCategorySheet = false
+                selectedCategory = nil
             }
         }
         .overlay(
